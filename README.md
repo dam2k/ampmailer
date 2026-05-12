@@ -53,13 +53,12 @@ Implemented:
 - Retry decorator for temporary SMTP failures, with tested max-attempt and
   backoff behavior.
 - `UnknownDeliveryState` for connection loss after the DATA body is sent.
-- Process-local rate limiting decorator.
+- Process-local rate limiting decorator with tested timing behavior.
 - PHPUnit tests, PHPStan analysis, Composer validation, and GitHub Actions CI
   for PHP 8.2, 8.3, and 8.4.
 
 Known gaps before tagging `0.6.1`:
 
-- Add tests for `InMemoryRateLimiter` timing behavior.
 - Add at least one documented manual interoperability checklist against real
   SMTP servers or local SMTP tools before publishing a release tag.
 - Prepare release metadata: changelog, CI badge, Packagist notes, and `0.6.1`

@@ -58,9 +58,8 @@ Implemented:
 
 Known gaps before tagging `0.6.1`:
 
-- Add more SMTP protocol tests: STARTTLS re-EHLO capability handling,
-  temporary/permanent failures at each SMTP phase, AUTH failure paths, and
-  malformed server replies.
+- Add more SMTP protocol tests: temporary/permanent failures at each SMTP phase,
+  AUTH failure paths, and malformed server replies.
 - Improve MIME tree generation for inline resources: HTML with inline
   attachments should use `multipart/related`, and combinations of text, HTML,
   inline resources, and normal attachments should be covered by explicit tests.

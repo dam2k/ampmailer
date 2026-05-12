@@ -37,7 +37,7 @@ final class SmtpMailer implements Mailer
                 $this->command($socket, $reader, 'STARTTLS', 220);
                 $socket->setupTls();
                 $reader = new BufferedReader($socket);
-                $this->command($socket, $reader, 'EHLO localhost', 250);
+                $ehlo = $this->command($socket, $reader, 'EHLO localhost', 250);
             }
 
             if ($this->config->username !== null && $this->config->password !== null) {
@@ -71,7 +71,7 @@ final class SmtpMailer implements Mailer
         $uri = $this->config->host . ':' . $this->config->port;
         $context = (new ConnectContext())
             ->withConnectTimeout($this->config->timeout)
-            ->withTlsContext(new ClientTlsContext($this->config->host));
+            ->withTlsContext($this->config->tlsContext ?? new ClientTlsContext($this->config->host));
 
         try {
             return $this->config->tlsMode === TlsMode::Implicit

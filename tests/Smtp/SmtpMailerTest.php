@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace Dam2k\AmpMailer\Tests\Smtp;
 
 use Amp\Socket;
+use Amp\Socket\BindContext;
+use Amp\Socket\Certificate;
+use Amp\Socket\ClientTlsContext;
+use Amp\Socket\ServerTlsContext;
 use Dam2k\AmpMailer\Email;
 use Dam2k\AmpMailer\Smtp\SmtpConfig;
 use Dam2k\AmpMailer\Smtp\SmtpException;
@@ -222,6 +226,99 @@ final class SmtpMailerTest extends TestCase
         self::assertContains('DATA', $commands);
     }
 
+    public function testUsesCapabilitiesAdvertisedAfterStartTls(): void
+    {
+        [$certFile, $keyFile] = self::createTemporaryCertificate();
+        $port = random_int(35001, 45000);
+        $server = Socket\listen(
+            '127.0.0.1:' . $port,
+            (new BindContext())->withTlsContext(
+                (new ServerTlsContext())->withDefaultCertificate(new Certificate($certFile, $keyFile))
+            ),
+        );
+        $address = (string) $server->getAddress();
+        $commands = [];
+
+        $future = \Amp\async(static function () use ($server, &$commands): void {
+            $client = $server->accept();
+            $client->write("220 localhost ESMTP\r\n");
+            $ehloCount = 0;
+            $authStep = 0;
+            $dataMode = false;
+
+            while (($chunk = $client->read()) !== null) {
+                foreach (explode("\r\n", $chunk) as $command) {
+                    if ($command === '') {
+                        continue;
+                    }
+
+                    $commands[] = $command;
+
+                    if ($dataMode) {
+                        if ($command === '.') {
+                            $dataMode = false;
+                            $client->write("250 queued\r\n");
+                        }
+
+                        continue;
+                    }
+
+                    if (str_starts_with($command, 'EHLO ')) {
+                        $ehloCount++;
+                        if ($ehloCount === 1) {
+                            $client->write("250-localhost\r\n250-STARTTLS\r\n250 OK\r\n");
+                        } else {
+                            $client->write("250-localhost\r\n250-AUTH LOGIN\r\n250 OK\r\n");
+                        }
+                    } elseif ($command === 'STARTTLS') {
+                        $client->write("220 ready for tls\r\n");
+                        $client->setupTls();
+                    } elseif ($command === 'AUTH LOGIN') {
+                        $authStep = 1;
+                        $client->write("334 VXNlcm5hbWU6\r\n");
+                    } elseif ($authStep === 1) {
+                        $authStep = 2;
+                        $client->write("334 UGFzc3dvcmQ6\r\n");
+                    } elseif ($authStep === 2) {
+                        $authStep = 0;
+                        $client->write("235 authenticated\r\n");
+                    } elseif (str_starts_with($command, 'MAIL FROM:') || str_starts_with($command, 'RCPT TO:')) {
+                        $client->write("250 ok\r\n");
+                    } elseif ($command === 'DATA') {
+                        $dataMode = true;
+                        $client->write("354 send data\r\n");
+                    } elseif ($command === 'QUIT') {
+                        $client->write("221 bye\r\n");
+                        break 2;
+                    }
+                }
+            }
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            username: 'user',
+            password: 'secret',
+            tlsMode: TlsMode::StartTls,
+            tlsContext: (new ClientTlsContext('localhost'))->withoutPeerVerification(),
+        ));
+
+        try {
+            $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+        } finally {
+            $future->await();
+            $server->close();
+            @unlink($certFile);
+            @unlink($keyFile);
+        }
+
+        self::assertSame(2, count(array_filter($commands, static fn (string $command): bool => $command === 'EHLO localhost')));
+        self::assertContains('STARTTLS', $commands);
+        self::assertContains('AUTH LOGIN', $commands);
+        self::assertContains('DATA', $commands);
+    }
+
     public function testGreetingTimeoutBecomesTemporarySmtpException(): void
     {
         $port = random_int(45001, 55000);
@@ -368,5 +465,35 @@ final class SmtpMailerTest extends TestCase
         self::assertContains('..first', $bodyLines);
         self::assertContains('...second', $bodyLines);
         self::assertNotContains('.first', $bodyLines);
+    }
+
+    /**
+     * @return array{0: string, 1: string}
+     */
+    private static function createTemporaryCertificate(): array
+    {
+        $privateKey = openssl_pkey_new([
+            'private_key_bits' => 2048,
+            'private_key_type' => OPENSSL_KEYTYPE_RSA,
+        ]);
+        self::assertNotFalse($privateKey);
+
+        $csr = openssl_csr_new(['commonName' => 'localhost'], $privateKey);
+        self::assertNotFalse($csr);
+
+        $certificate = openssl_csr_sign($csr, null, $privateKey, 1);
+        self::assertNotFalse($certificate);
+
+        self::assertTrue(openssl_x509_export($certificate, $certContents));
+        self::assertTrue(openssl_pkey_export($privateKey, $keyContents));
+
+        $certFile = tempnam(sys_get_temp_dir(), 'ampmailer-cert-');
+        $keyFile = tempnam(sys_get_temp_dir(), 'ampmailer-key-');
+        self::assertIsString($certFile);
+        self::assertIsString($keyFile);
+        self::assertNotFalse(file_put_contents($certFile, $certContents));
+        self::assertNotFalse(file_put_contents($keyFile, $keyContents));
+
+        return [$certFile, $keyFile];
     }
 }

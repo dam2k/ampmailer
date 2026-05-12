@@ -96,6 +96,23 @@ final class MimeRendererTest extends TestCase
         self::assertStringNotContainsString('AMPMAILER-MIXED-END', $message->data);
     }
 
+    public function testRendersInlineAttachmentWithInlineDisposition(): void
+    {
+        $message = (new MimeRenderer())->render(
+            Email::new()
+                ->from('sender@example.com')
+                ->to('to@example.net')
+                ->subject('Inline')
+                ->html('<img src="cid:logo@example.net">')
+                ->inlineData('image-bytes', 'logo.png', 'image/png', 'logo@example.net')
+        );
+
+        self::assertStringContainsString('Content-Type: image/png; name="logo.png"', $message->data);
+        self::assertStringContainsString('Content-Disposition: inline; filename="logo.png"', $message->data);
+        self::assertStringContainsString("Content-ID: <logo@example.net>\r\n", $message->data);
+        self::assertStringNotContainsString('Content-Disposition: attachment; filename="logo.png"', $message->data);
+    }
+
     public function testRendersUtf8AttachmentFilenameWithEncodedParameters(): void
     {
         $message = (new MimeRenderer())->render(

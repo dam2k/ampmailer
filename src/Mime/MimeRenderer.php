@@ -141,7 +141,12 @@ final class MimeRenderer
         $part = "--{$boundary}\r\n";
         $part .= $this->headerWithFilenameParameter('Content-Type', $attachment->contentType, 'name', $attachment->name);
         $part .= "Content-Transfer-Encoding: base64\r\n";
-        $part .= $this->headerWithFilenameParameter('Content-Disposition', 'attachment', 'filename', $attachment->name);
+        $part .= $this->headerWithFilenameParameter(
+            'Content-Disposition',
+            $attachment->isInline() ? 'inline' : 'attachment',
+            'filename',
+            $attachment->name,
+        );
         if ($attachment->isInline()) {
             $part .= 'Content-ID: <' . $attachment->contentId . ">\r\n";
         }

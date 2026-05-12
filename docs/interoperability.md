@@ -38,3 +38,18 @@ used for the manual SMTP check:
 - Message variants tested: plain text, HTML, attachment.
 - Result: accepted, delivered, rejected, or inconclusive.
 
+## Recorded Checks
+
+### 2026-05-12 Controlled Submission Test
+
+- Environment: controlled production submission MTA based on
+  MailCleaner/Exim.
+- Port and TLS mode: submission port 587 with STARTTLS.
+- TLS verification: peer certificate verified against the MTA hostname, not
+  the raw IP address.
+- Authentication: `AUTH PLAIN` advertised after STARTTLS and accepted.
+- Message variants tested: plain text, HTML, small text attachment.
+- Recipient scope: internal controlled recipient only; no external recipients
+  used.
+- Result: all three SMTP transactions were accepted by the MTA for delivery.
+  Mailbox-level receipt confirmation is outside this automated check.

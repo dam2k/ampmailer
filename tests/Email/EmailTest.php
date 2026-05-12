@@ -82,6 +82,27 @@ final class EmailTest extends TestCase
         self::assertSame(Attachment::SOURCE_DATA, $email->getAttachments()[1]->sourceType);
     }
 
+    public function testAttachmentNameRejectsHeaderInjection(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Attachment::data('payload', "payload.txt\r\nContent-Type: text/html", 'text/plain');
+    }
+
+    public function testAttachmentContentTypeMustBeValidMediaType(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Attachment::data('payload', 'payload.txt', "text/plain\r\nX-Bad: yes");
+    }
+
+    public function testInlineAttachmentContentIdRejectsHeaderInjection(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Attachment::data('payload', 'logo.png', 'image/png', "logo@example.net\r\nX-Bad: yes");
+    }
+
     public function testHeadersUseExplicitGetter(): void
     {
         $email = Email::new()->header('X-Test', 'yes');

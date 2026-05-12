@@ -58,8 +58,6 @@ Implemented:
 
 Known gaps before tagging `0.6.1`:
 
-- Add validation for attachment names, content types, and content IDs to reject
-  unsafe header characters.
 - Add tests for retry limits and backoff timing without making the suite slow.
 - Add tests for `InMemoryRateLimiter` timing behavior.
 - Add at least one documented manual interoperability checklist against real

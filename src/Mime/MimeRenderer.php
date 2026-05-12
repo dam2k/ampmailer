@@ -139,15 +139,24 @@ final class MimeRenderer
     {
         $encoded = chunk_split(base64_encode($attachment->content()), 76, "\r\n");
         $part = "--{$boundary}\r\n";
-        $part .= 'Content-Type: ' . $attachment->contentType . '; name="' . $this->quote($attachment->name) . "\"\r\n";
+        $part .= $this->headerWithFilenameParameter('Content-Type', $attachment->contentType, 'name', $attachment->name);
         $part .= "Content-Transfer-Encoding: base64\r\n";
-        $part .= 'Content-Disposition: attachment; filename="' . $this->quote($attachment->name) . "\"\r\n";
+        $part .= $this->headerWithFilenameParameter('Content-Disposition', 'attachment', 'filename', $attachment->name);
         if ($attachment->isInline()) {
             $part .= 'Content-ID: <' . $attachment->contentId . ">\r\n";
         }
         $part .= "\r\n{$encoded}\r\n";
 
         return $part;
+    }
+
+    private function headerWithFilenameParameter(string $name, string $value, string $parameter, string $filename): string
+    {
+        if ($this->isAsciiHeaderParameter($filename)) {
+            return "{$name}: {$value}; {$parameter}=\"" . $this->quote($filename) . "\"\r\n";
+        }
+
+        return "{$name}: {$value};\r\n {$parameter}*=UTF-8''" . rawurlencode($filename) . "\r\n";
     }
 
     /**
@@ -183,6 +192,11 @@ final class MimeRenderer
     private function quote(string $value): string
     {
         return str_replace(['\\', '"'], ['\\\\', '\\"'], $value);
+    }
+
+    private function isAsciiHeaderParameter(string $value): bool
+    {
+        return preg_match('/^[\x20-\x7E]+$/', $value) === 1;
     }
 
     private function boundary(): string

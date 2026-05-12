@@ -79,4 +79,20 @@ final class MimeRendererTest extends TestCase
         self::assertStringContainsString(chunk_split(base64_encode('abc'), 76, "\r\n"), $message->data);
         self::assertStringNotContainsString('AMPMAILER-MIXED-END', $message->data);
     }
+
+    public function testRendersUtf8AttachmentFilenameWithEncodedParameters(): void
+    {
+        $message = (new MimeRenderer())->render(
+            Email::new()
+                ->from('sender@example.com')
+                ->to('to@example.net')
+                ->subject('Attachment')
+                ->text('Attached')
+                ->attachData('abc', 'fattura è.pdf', 'application/pdf')
+        );
+
+        self::assertStringContainsString("Content-Type: application/pdf;\r\n name*=UTF-8''fattura%20%C3%A8.pdf\r\n", $message->data);
+        self::assertStringContainsString("Content-Disposition: attachment;\r\n filename*=UTF-8''fattura%20%C3%A8.pdf\r\n", $message->data);
+        self::assertStringNotContainsString('filename="fattura è.pdf"', $message->data);
+    }
 }

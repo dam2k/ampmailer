@@ -46,6 +46,22 @@ final class MimeRendererTest extends TestCase
         self::assertStringNotContainsString('hidden@example.net', $message->data);
     }
 
+    public function testRendersEncodedAddressDisplayName(): void
+    {
+        $message = (new MimeRenderer())->render(
+            Email::new()
+                ->from('Mario È <sender@example.com>')
+                ->to('recipient@example.net')
+                ->subject('Hello')
+                ->text('Body')
+        );
+
+        self::assertStringContainsString(
+            'From: =?UTF-8?B?' . base64_encode('Mario È') . "?= <sender@example.com>\r\n",
+            $message->data,
+        );
+    }
+
     public function testRendersTextAndHtmlAsAlternative(): void
     {
         $message = (new MimeRenderer())->render(

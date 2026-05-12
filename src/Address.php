@@ -43,6 +43,19 @@ final class Address
             return $this->email;
         }
 
-        return $this->name . ' <' . $this->email . '>';
+        return $this->formatDisplayName($this->name) . ' <' . $this->email . '>';
+    }
+
+    private function formatDisplayName(string $name): string
+    {
+        if (preg_match('/[^\x20-\x7E]/', $name) === 1) {
+            return '=?UTF-8?B?' . base64_encode($name) . '?=';
+        }
+
+        if (preg_match('/^[A-Za-z0-9!#$%&\'*+\-\/=?^_`{|}~ ]+$/', $name) === 1) {
+            return $name;
+        }
+
+        return '"' . str_replace(['\\', '"'], ['\\\\', '\\"'], $name) . '"';
     }
 }

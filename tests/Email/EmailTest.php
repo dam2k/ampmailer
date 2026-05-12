@@ -48,6 +48,20 @@ final class EmailTest extends TestCase
         self::assertSame('Jane Doe <jane@example.net>', $address->format());
     }
 
+    public function testAddressQuotesSpecialAsciiDisplayName(): void
+    {
+        $address = new Address('jane@example.net', 'Doe, "Jane"');
+
+        self::assertSame('"Doe, \"Jane\"" <jane@example.net>', $address->format());
+    }
+
+    public function testAddressEncodesUtf8DisplayName(): void
+    {
+        $address = new Address('mario@example.net', 'Mario È');
+
+        self::assertSame('=?UTF-8?B?' . base64_encode('Mario È') . '?= <mario@example.net>', $address->format());
+    }
+
     public function testInvalidAddressThrows(): void
     {
         $this->expectException(InvalidEmail::class);

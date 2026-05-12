@@ -31,7 +31,7 @@ final class SmtpMailer implements Mailer
 
         try {
             $this->expect($this->readReply($reader), 220);
-            $ehlo = $this->command($socket, $reader, 'EHLO localhost', 250);
+            $ehlo = $this->hello($socket, $reader);
 
             if ($this->shouldStartTls($ehlo)) {
                 $this->command($socket, $reader, 'STARTTLS', 220);
@@ -95,6 +95,21 @@ final class SmtpMailer implements Mailer
             TlsMode::StartTlsIfAvailable => $available,
             default => false,
         };
+    }
+
+    private function hello(Socket\Socket $socket, BufferedReader $reader): SmtpReply
+    {
+        $socket->write("EHLO localhost\r\n");
+        $reply = $this->readReply($reader);
+        if ($reply->code === 250) {
+            return $reply;
+        }
+
+        if (!in_array($reply->code, [500, 502, 504], true)) {
+            $this->expect($reply, 250);
+        }
+
+        return $this->command($socket, $reader, 'HELO localhost', 250);
     }
 
     private function command(Socket\Socket $socket, BufferedReader $reader, string $command, int $expectedCode): SmtpReply

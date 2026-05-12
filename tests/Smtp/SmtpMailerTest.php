@@ -160,6 +160,68 @@ final class SmtpMailerTest extends TestCase
         self::assertContains(base64_encode('secret'), $commands);
     }
 
+    public function testFallsBackToHeloWhenEhloIsNotSupported(): void
+    {
+        $port = random_int(35001, 45000);
+        $server = Socket\listen('127.0.0.1:' . $port);
+        $address = (string) $server->getAddress();
+        $commands = [];
+
+        $future = \Amp\async(static function () use ($server, &$commands): void {
+            $client = $server->accept();
+            $client->write("220 localhost SMTP\r\n");
+            $dataMode = false;
+
+            while (($chunk = $client->read()) !== null) {
+                foreach (explode("\r\n", $chunk) as $command) {
+                    if ($command === '') {
+                        continue;
+                    }
+
+                    $commands[] = $command;
+
+                    if ($dataMode) {
+                        if ($command === '.') {
+                            $dataMode = false;
+                            $client->write("250 queued\r\n");
+                        }
+
+                        continue;
+                    }
+
+                    if (str_starts_with($command, 'EHLO ')) {
+                        $client->write("500 EHLO not supported\r\n");
+                    } elseif (str_starts_with($command, 'HELO ')) {
+                        $client->write("250 localhost\r\n");
+                    } elseif (str_starts_with($command, 'MAIL FROM:') || str_starts_with($command, 'RCPT TO:')) {
+                        $client->write("250 ok\r\n");
+                    } elseif ($command === 'DATA') {
+                        $dataMode = true;
+                        $client->write("354 send data\r\n");
+                    } elseif ($command === 'QUIT') {
+                        $client->write("221 bye\r\n");
+                        break 2;
+                    }
+                }
+            }
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            tlsMode: TlsMode::Disabled,
+        ));
+
+        $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+
+        $future->await();
+        $server->close();
+
+        self::assertContains('EHLO localhost', $commands);
+        self::assertContains('HELO localhost', $commands);
+        self::assertContains('DATA', $commands);
+    }
+
     public function testGreetingTimeoutBecomesTemporarySmtpException(): void
     {
         $port = random_int(45001, 55000);

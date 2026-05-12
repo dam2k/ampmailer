@@ -59,8 +59,9 @@ Implemented:
 
 Known gaps before tagging `0.6.1`:
 
-- Add at least one documented manual interoperability checklist against real
-  SMTP servers or local SMTP tools before publishing a release tag.
+- Complete and record at least one manual interoperability check against a
+  controlled real SMTP server or local SMTP tool before publishing a release
+  tag. See `docs/interoperability.md`.
 - Prepare release metadata: changelog, CI badge, Packagist notes, and `0.6.1`
   tag procedure.
 

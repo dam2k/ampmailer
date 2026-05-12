@@ -416,6 +416,69 @@ final class SmtpMailerTest extends TestCase
         self::assertContains('DATA', $commands);
     }
 
+    public function testStartTlsNegotiationFailureBecomesTemporarySmtpException(): void
+    {
+        [$certFile, $keyFile] = self::createTemporaryCertificate();
+        $port = random_int(35001, 45000);
+        $server = Socket\listen(
+            '127.0.0.1:' . $port,
+            (new BindContext())->withTlsContext(
+                (new ServerTlsContext())->withDefaultCertificate(new Certificate($certFile, $keyFile))
+            ),
+        );
+        $address = (string) $server->getAddress();
+        $commands = [];
+
+        $future = \Amp\async(static function () use ($server, &$commands): void {
+            $client = $server->accept();
+            $client->write("220 localhost ESMTP\r\n");
+
+            while (($chunk = $client->read()) !== null) {
+                foreach (explode("\r\n", $chunk) as $command) {
+                    if ($command === '') {
+                        continue;
+                    }
+
+                    $commands[] = $command;
+
+                    if (str_starts_with($command, 'EHLO ')) {
+                        $client->write("250-localhost\r\n250-STARTTLS\r\n250 OK\r\n");
+                    } elseif ($command === 'STARTTLS') {
+                        $client->write("220 ready for tls\r\n");
+                        try {
+                            $client->setupTls();
+                        } catch (\Throwable) {
+                        }
+
+                        break 2;
+                    }
+                }
+            }
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            tlsMode: TlsMode::StartTls,
+        ));
+
+        try {
+            $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+            self::fail('Expected STARTTLS negotiation failure.');
+        } catch (SmtpException $exception) {
+            self::assertTrue($exception->isTemporary());
+            self::assertSame(0, $exception->replyCode);
+            self::assertStringContainsString('TLS negotiation failed', $exception->getMessage());
+        } finally {
+            $future->await();
+            $server->close();
+            @unlink($certFile);
+            @unlink($keyFile);
+        }
+
+        self::assertContains('STARTTLS', $commands);
+    }
+
     public function testGreetingTimeoutBecomesTemporarySmtpException(): void
     {
         $port = random_int(45001, 55000);

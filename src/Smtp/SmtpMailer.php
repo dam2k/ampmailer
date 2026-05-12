@@ -36,7 +36,11 @@ final class SmtpMailer implements Mailer
 
             if ($this->shouldStartTls($ehlo)) {
                 $this->command($socket, $reader, 'STARTTLS', 220);
-                $socket->setupTls();
+                try {
+                    $socket->setupTls();
+                } catch (Socket\TlsException $exception) {
+                    throw SmtpException::temporary(0, $exception->getMessage());
+                }
                 $reader = new BufferedReader($socket);
                 $ehlo = $this->command($socket, $reader, 'EHLO localhost', 250);
             }
@@ -78,7 +82,7 @@ final class SmtpMailer implements Mailer
             return $this->config->tlsMode === TlsMode::Implicit
                 ? Socket\connectTls($uri, $context, $this->cancellation())
                 : Socket\connect($uri, $context, $this->cancellation());
-        } catch (CancelledException|Socket\ConnectException $exception) {
+        } catch (CancelledException|Socket\ConnectException|Socket\TlsException $exception) {
             throw SmtpException::temporary(0, $exception->getMessage());
         }
     }

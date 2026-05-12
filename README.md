@@ -11,6 +11,16 @@ The current target is `0.6.1`: a small, usable pre-1.0 release with a stable
 core API, strong local test coverage, and explicit warnings about the remaining
 production validation work.
 
+## Anti-Spam Policy
+
+Use of this software to send spam, unsolicited email, abusive bulk email,
+phishing, malware, harassment, or any mail that violates applicable law,
+provider policy, or recipient consent is strongly prohibited.
+
+This prohibition applies to every user, software system, automation pipeline,
+bot, and AI agent using this package directly or indirectly. AmpMailer is meant
+for legitimate transactional and consent-based email only.
+
 ```bash
 composer require dam2k/ampmailer
 ```

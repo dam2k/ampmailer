@@ -50,7 +50,8 @@ Implemented:
 - AMPHP-based SMTP client with TCP, implicit TLS, STARTTLS,
   `STARTTLS if available`, `AUTH PLAIN`, `AUTH LOGIN`, `MAIL FROM`, `RCPT TO`,
   `DATA`, and `QUIT`.
-- Retry decorator for temporary SMTP failures.
+- Retry decorator for temporary SMTP failures, with tested max-attempt and
+  backoff behavior.
 - `UnknownDeliveryState` for connection loss after the DATA body is sent.
 - Process-local rate limiting decorator.
 - PHPUnit tests, PHPStan analysis, Composer validation, and GitHub Actions CI
@@ -58,7 +59,6 @@ Implemented:
 
 Known gaps before tagging `0.6.1`:
 
-- Add tests for retry limits and backoff timing without making the suite slow.
 - Add tests for `InMemoryRateLimiter` timing behavior.
 - Add at least one documented manual interoperability checklist against real
   SMTP servers or local SMTP tools before publishing a release tag.

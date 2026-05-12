@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Dam2k\AmpMailer;
 
+use InvalidArgumentException;
+
 final class Email
 {
     private ?Address $from = null;
@@ -65,6 +67,7 @@ final class Email
 
     public function subject(string $subject): self
     {
+        $this->assertHeaderValue($subject, 'Subject');
         $this->subject = $subject;
 
         return $this;
@@ -86,6 +89,11 @@ final class Email
 
     public function header(string $name, string $value): self
     {
+        if (preg_match('/^[!#$%&\'*+\-.^_`|~0-9A-Za-z]+$/', $name) !== 1) {
+            throw new InvalidArgumentException("Invalid header name: {$name}");
+        }
+
+        $this->assertHeaderValue($value, $name);
         $this->headers[$name] = $value;
 
         return $this;
@@ -168,4 +176,10 @@ final class Email
         return $this->html;
     }
 
+    private function assertHeaderValue(string $value, string $name): void
+    {
+        if (str_contains($value, "\r") || str_contains($value, "\n")) {
+            throw new InvalidArgumentException("Header value must not contain CR or LF: {$name}");
+        }
+    }
 }

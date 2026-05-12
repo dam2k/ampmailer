@@ -8,6 +8,7 @@ use Dam2k\AmpMailer\Address;
 use Dam2k\AmpMailer\Attachment;
 use Dam2k\AmpMailer\Email;
 use Dam2k\AmpMailer\Exception\InvalidEmail;
+use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
 
 final class EmailTest extends TestCase
@@ -72,5 +73,40 @@ final class EmailTest extends TestCase
         $email = Email::new()->header('X-Test', 'yes');
 
         self::assertSame(['X-Test' => 'yes'], $email->getHeaders());
+    }
+
+    public function testSubjectRejectsHeaderInjection(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Email::new()->subject("Hello\r\nBcc: attacker@example.net");
+    }
+
+    public function testCustomHeaderNameMustBeValid(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Email::new()->header("X-Test\r\nBcc", 'yes');
+    }
+
+    public function testCustomHeaderValueRejectsHeaderInjection(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+
+        Email::new()->header('X-Test', "yes\r\nBcc: attacker@example.net");
+    }
+
+    public function testAddressDisplayNameRejectsHeaderInjection(): void
+    {
+        $this->expectException(InvalidEmail::class);
+
+        Address::parse("Sender\r\nBcc: attacker@example.net <sender@example.com>");
+    }
+
+    public function testAddressConstructorRejectsUnsafeDisplayName(): void
+    {
+        $this->expectException(InvalidEmail::class);
+
+        new Address('sender@example.com', "Sender\r\nBcc: attacker@example.net");
     }
 }

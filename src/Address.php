@@ -15,6 +15,10 @@ final class Address
         if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
             throw new InvalidEmail("Invalid email address: {$email}");
         }
+
+        if ($name !== null && (str_contains($name, "\r") || str_contains($name, "\n"))) {
+            throw new InvalidEmail('Address display name must not contain CR or LF.');
+        }
     }
 
     public static function parse(string|self $address): self

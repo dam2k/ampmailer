@@ -58,8 +58,6 @@ Implemented:
 
 Known gaps before tagging `0.6.1`:
 
-- Add more SMTP protocol tests for temporary/permanent failures at each SMTP
-  phase.
 - Improve MIME tree generation for inline resources: HTML with inline
   attachments should use `multipart/related`, and combinations of text, HTML,
   inline resources, and normal attachments should be covered by explicit tests.

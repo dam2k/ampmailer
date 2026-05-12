@@ -520,6 +520,36 @@ final class SmtpMailerTest extends TestCase
         }
     }
 
+    public function testTemporaryMailFromFailureIsTemporary(): void
+    {
+        $this->assertEnvelopeCommandFailure('MAIL FROM', '451 sender temporarily rejected', 451, true);
+    }
+
+    public function testPermanentMailFromFailureIsPermanent(): void
+    {
+        $this->assertEnvelopeCommandFailure('MAIL FROM', '550 sender rejected', 550, false);
+    }
+
+    public function testTemporaryRecipientFailureIsTemporary(): void
+    {
+        $this->assertEnvelopeCommandFailure('RCPT TO', '450 mailbox temporarily unavailable', 450, true);
+    }
+
+    public function testPermanentRecipientFailureIsPermanent(): void
+    {
+        $this->assertEnvelopeCommandFailure('RCPT TO', '550 mailbox unavailable', 550, false);
+    }
+
+    public function testTemporaryDataFailureIsTemporary(): void
+    {
+        $this->assertEnvelopeCommandFailure('DATA', '451 data temporarily rejected', 451, true);
+    }
+
+    public function testPermanentDataFailureIsPermanent(): void
+    {
+        $this->assertEnvelopeCommandFailure('DATA', '554 transaction failed', 554, false);
+    }
+
     public function testConnectionLossAfterDataBodyReportsUnknownDeliveryState(): void
     {
         $port = random_int(55001, 60000);
@@ -665,5 +695,64 @@ final class SmtpMailerTest extends TestCase
         self::assertNotFalse(file_put_contents($keyFile, $keyContents));
 
         return [$certFile, $keyFile];
+    }
+
+    private function assertEnvelopeCommandFailure(
+        string $failedCommand,
+        string $reply,
+        int $replyCode,
+        bool $temporary,
+    ): void {
+        $port = random_int(45001, 55000);
+        $server = Socket\listen('127.0.0.1:' . $port);
+        $address = (string) $server->getAddress();
+        $commands = [];
+
+        $future = \Amp\async(static function () use ($server, &$commands, $failedCommand, $reply): void {
+            $client = $server->accept();
+            $client->write("220 localhost ESMTP\r\n");
+
+            while (($chunk = $client->read()) !== null) {
+                foreach (explode("\r\n", $chunk) as $command) {
+                    if ($command === '') {
+                        continue;
+                    }
+
+                    $commands[] = $command;
+
+                    if (str_starts_with($command, 'EHLO ')) {
+                        $client->write("250-localhost\r\n250 OK\r\n");
+                    } elseif (str_starts_with($command, $failedCommand)) {
+                        $client->write($reply . "\r\n");
+                    } elseif (str_starts_with($command, 'MAIL FROM:') || str_starts_with($command, 'RCPT TO:')) {
+                        $client->write("250 ok\r\n");
+                    } elseif ($command === 'DATA') {
+                        $client->write("354 send data\r\n");
+                    }
+                }
+            }
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            tlsMode: TlsMode::Disabled,
+        ));
+
+        try {
+            $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+            self::fail('Expected SMTP command failure.');
+        } catch (SmtpException $exception) {
+            self::assertSame($temporary, $exception->isTemporary());
+            self::assertSame($replyCode, $exception->replyCode);
+        } finally {
+            $future->await();
+            $server->close();
+        }
+
+        self::assertTrue((bool) preg_grep('/^' . preg_quote($failedCommand, '/') . '/', $commands));
+        if ($failedCommand !== 'DATA') {
+            self::assertNotContains('DATA', $commands);
+        }
     }
 }

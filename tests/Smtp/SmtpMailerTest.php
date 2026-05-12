@@ -447,6 +447,79 @@ final class SmtpMailerTest extends TestCase
         }
     }
 
+    public function testMalformedGreetingBecomesTemporarySmtpException(): void
+    {
+        $port = random_int(45001, 55000);
+        $server = Socket\listen('127.0.0.1:' . $port);
+        $address = (string) $server->getAddress();
+
+        $future = \Amp\async(static function () use ($server): void {
+            $client = $server->accept();
+            $client->write("not an smtp reply\r\n");
+            $client->read();
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            tlsMode: TlsMode::Disabled,
+        ));
+
+        try {
+            $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+            self::fail('Expected malformed reply exception.');
+        } catch (SmtpException $exception) {
+            self::assertTrue($exception->isTemporary());
+            self::assertSame(0, $exception->replyCode);
+            self::assertStringContainsString('Invalid SMTP reply line', $exception->getMessage());
+        } finally {
+            $future->await();
+            $server->close();
+        }
+    }
+
+    public function testMalformedMultilineReplyBecomesTemporarySmtpException(): void
+    {
+        $port = random_int(45001, 55000);
+        $server = Socket\listen('127.0.0.1:' . $port);
+        $address = (string) $server->getAddress();
+
+        $future = \Amp\async(static function () use ($server): void {
+            $client = $server->accept();
+            $client->write("220 localhost ESMTP\r\n");
+
+            while (($chunk = $client->read()) !== null) {
+                foreach (explode("\r\n", $chunk) as $command) {
+                    if ($command === '') {
+                        continue;
+                    }
+
+                    if (str_starts_with($command, 'EHLO ')) {
+                        $client->write("250-localhost\r\n550 wrong code\r\n");
+                    }
+                }
+            }
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            tlsMode: TlsMode::Disabled,
+        ));
+
+        try {
+            $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+            self::fail('Expected malformed multiline reply exception.');
+        } catch (SmtpException $exception) {
+            self::assertTrue($exception->isTemporary());
+            self::assertSame(0, $exception->replyCode);
+            self::assertStringContainsString('SMTP reply code changed', $exception->getMessage());
+        } finally {
+            $future->await();
+            $server->close();
+        }
+    }
+
     public function testConnectionLossAfterDataBodyReportsUnknownDeliveryState(): void
     {
         $port = random_int(55001, 60000);

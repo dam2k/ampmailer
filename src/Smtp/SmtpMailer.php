@@ -14,6 +14,7 @@ use Amp\TimeoutCancellation;
 use Dam2k\AmpMailer\Email;
 use Dam2k\AmpMailer\Mailer;
 use Dam2k\AmpMailer\Mime\MimeRenderer;
+use RuntimeException;
 
 final class SmtpMailer implements Mailer
 {
@@ -160,7 +161,11 @@ final class SmtpMailer implements Mailer
         }
 
         /** @var non-empty-list<string> $lines */
-        return SmtpReply::parse($lines);
+        try {
+            return SmtpReply::parse($lines);
+        } catch (RuntimeException $exception) {
+            throw SmtpException::temporary(0, $exception->getMessage());
+        }
     }
 
     private function expect(SmtpReply $reply, int $expectedCode): void

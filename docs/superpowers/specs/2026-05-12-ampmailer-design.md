@@ -50,8 +50,10 @@ Planned dependencies:
 - `amphp/amp:^3`
 - `amphp/socket:^2`
 - `amphp/byte-stream:^2`
-- `amphp/sync:^2`
-- `revolt/event-loop:^1`
+
+`amphp/sync` and `revolt/event-loop` are intentionally not direct package
+requirements unless the code starts using them directly. They can still be
+installed transitively by AMPHP packages.
 
 Optional dependencies may be added later for MIME type detection, CSS inlining,
 or HTML parsing, but the first release should avoid optional complexity unless

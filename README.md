@@ -7,12 +7,54 @@ Small AMPHP v3 mailer with MIME rendering, SMTP transport, retry, and rate limit
 AmpMailer is experimental and still lightly tested. Test it carefully and for a
 long period in your own environment before relying on it in production.
 
+The current target is `0.6.1`: a small, usable pre-1.0 release with a stable
+core API, strong local test coverage, and explicit warnings about the remaining
+production validation work.
+
 ```bash
 composer require dam2k/ampmailer
 ```
 
 This package is inspired by the simplicity of `nette/mail`, but it is not API
 compatible with Nette. DKIM is intentionally out of scope.
+
+## Current Scope
+
+Implemented:
+
+- Fluent `Email` builder with `From`, `To`, `Cc`, `Bcc`, `Reply-To`, subject,
+  text body, HTML body, custom headers, file attachments, data attachments, and
+  inline data attachments.
+- MIME rendering for plain text, HTML, `multipart/alternative`,
+  `multipart/mixed`, attachments, UTF-8 subjects, UTF-8 address display names,
+  UTF-8 attachment filenames, `Bcc` envelope-only handling, CRLF normalization,
+  and SMTP dot-stuffing.
+- Header safety checks for custom headers, subject, and address display names.
+- AMPHP-based SMTP client with TCP, implicit TLS, STARTTLS,
+  `STARTTLS if available`, `AUTH PLAIN`, `AUTH LOGIN`, `MAIL FROM`, `RCPT TO`,
+  `DATA`, and `QUIT`.
+- Retry decorator for temporary SMTP failures.
+- `UnknownDeliveryState` for connection loss after the DATA body is sent.
+- Process-local rate limiting decorator.
+- PHPUnit tests, PHPStan analysis, Composer validation, and GitHub Actions CI
+  for PHP 8.2, 8.3, and 8.4.
+
+Known gaps before tagging `0.6.1`:
+
+- Add more SMTP protocol tests: EHLO fallback behavior, STARTTLS re-EHLO
+  capability handling, temporary/permanent failures at each SMTP phase, AUTH
+  failure paths, and malformed server replies.
+- Improve MIME tree generation for inline resources: HTML with inline
+  attachments should use `multipart/related`, and combinations of text, HTML,
+  inline resources, and normal attachments should be covered by explicit tests.
+- Add validation for attachment names, content types, and content IDs to reject
+  unsafe header characters.
+- Add tests for retry limits and backoff timing without making the suite slow.
+- Add tests for `InMemoryRateLimiter` timing behavior.
+- Add at least one documented manual interoperability checklist against real
+  SMTP servers or local SMTP tools before publishing a release tag.
+- Prepare release metadata: changelog, CI badge, Packagist notes, and `0.6.1`
+  tag procedure.
 
 ## Basic Usage
 
@@ -80,3 +122,5 @@ future shared implementation such as Redis.
 - SMTP transport uses AMPHP sockets.
 - STARTTLS is negotiated when requested and advertised by the SMTP server.
 - SMTP DATA payloads are normalized to CRLF and dot-stuffed before delivery.
+- `amphp/sync` and `revolt/event-loop` are not direct dependencies of this
+  package. They may still be installed transitively by AMPHP components.

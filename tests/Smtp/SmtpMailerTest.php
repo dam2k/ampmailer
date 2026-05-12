@@ -164,6 +164,103 @@ final class SmtpMailerTest extends TestCase
         self::assertContains(base64_encode('secret'), $commands);
     }
 
+    public function testPermanentAuthFailureStopsBeforeEnvelope(): void
+    {
+        $port = random_int(35001, 45000);
+        $server = Socket\listen('127.0.0.1:' . $port);
+        $address = (string) $server->getAddress();
+        $commands = [];
+
+        $future = \Amp\async(static function () use ($server, &$commands): void {
+            $client = $server->accept();
+            $client->write("220 localhost ESMTP\r\n");
+
+            while (($chunk = $client->read()) !== null) {
+                foreach (explode("\r\n", $chunk) as $command) {
+                    if ($command === '') {
+                        continue;
+                    }
+
+                    $commands[] = $command;
+
+                    if (str_starts_with($command, 'EHLO ')) {
+                        $client->write("250-localhost\r\n250-AUTH PLAIN\r\n250 OK\r\n");
+                    } elseif (str_starts_with($command, 'AUTH PLAIN ')) {
+                        $client->write("535 authentication failed\r\n");
+                    }
+                }
+            }
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            username: 'user',
+            password: 'wrong',
+            tlsMode: TlsMode::Disabled,
+        ));
+
+        try {
+            $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+            self::fail('Expected authentication failure.');
+        } catch (SmtpException $exception) {
+            self::assertFalse($exception->isTemporary());
+            self::assertSame(535, $exception->replyCode);
+        } finally {
+            $future->await();
+            $server->close();
+        }
+
+        self::assertContains('EHLO localhost', $commands);
+        self::assertTrue((bool) preg_grep('/^AUTH PLAIN /', $commands));
+        self::assertFalse((bool) preg_grep('/^MAIL FROM:/', $commands));
+    }
+
+    public function testTemporaryAuthFailureIsTemporary(): void
+    {
+        $port = random_int(35001, 45000);
+        $server = Socket\listen('127.0.0.1:' . $port);
+        $address = (string) $server->getAddress();
+
+        $future = \Amp\async(static function () use ($server): void {
+            $client = $server->accept();
+            $client->write("220 localhost ESMTP\r\n");
+
+            while (($chunk = $client->read()) !== null) {
+                foreach (explode("\r\n", $chunk) as $command) {
+                    if ($command === '') {
+                        continue;
+                    }
+
+                    if (str_starts_with($command, 'EHLO ')) {
+                        $client->write("250-localhost\r\n250-AUTH PLAIN\r\n250 OK\r\n");
+                    } elseif (str_starts_with($command, 'AUTH PLAIN ')) {
+                        $client->write("454 temporary authentication failure\r\n");
+                    }
+                }
+            }
+        });
+
+        $mailer = new SmtpMailer(new SmtpConfig(
+            host: '127.0.0.1',
+            port: (int) parse_url($address, PHP_URL_PORT),
+            username: 'user',
+            password: 'secret',
+            tlsMode: TlsMode::Disabled,
+        ));
+
+        try {
+            $mailer->send(Email::new()->from('sender@example.com')->to('to@example.net')->text('Body'));
+            self::fail('Expected temporary authentication failure.');
+        } catch (SmtpException $exception) {
+            self::assertTrue($exception->isTemporary());
+            self::assertSame(454, $exception->replyCode);
+        } finally {
+            $future->await();
+            $server->close();
+        }
+    }
+
     public function testFallsBackToHeloWhenEhloIsNotSupported(): void
     {
         $port = random_int(35001, 45000);

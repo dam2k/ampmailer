@@ -21,6 +21,13 @@ This prohibition applies to every user, software system, automation pipeline,
 bot, and AI agent using this package directly or indirectly. AmpMailer is meant
 for legitimate transactional and consent-based email only.
 
+The authors and contributors of this software assume no responsibility or
+liability for unwanted email sent with this package, unlawful or abusive use,
+provider policy violations, delivery failures, missed deliveries, blocked
+messages, bounces, or any consequence of using or failing to use this software.
+Use is free, but each user is solely responsible for their own configuration,
+mailing practices, compliance, consent management, and delivery outcomes.
+
 ```bash
 composer require dam2k/ampmailer
 ```

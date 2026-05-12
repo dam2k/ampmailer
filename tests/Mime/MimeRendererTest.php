@@ -113,6 +113,69 @@ final class MimeRendererTest extends TestCase
         self::assertStringNotContainsString('Content-Disposition: attachment; filename="logo.png"', $message->data);
     }
 
+    public function testRendersInlineAttachmentAsRelated(): void
+    {
+        $message = (new MimeRenderer())->render(
+            Email::new()
+                ->from('sender@example.com')
+                ->to('to@example.net')
+                ->subject('Inline')
+                ->html('<img src="cid:logo@example.net">')
+                ->inlineData('image-bytes', 'logo.png', 'image/png', 'logo@example.net')
+        );
+
+        self::assertStringContainsString('Content-Type: multipart/related;', $message->data);
+        self::assertStringNotContainsString('Content-Type: multipart/mixed;', $message->data);
+        self::assertStringContainsString('Content-Type: text/html; charset=UTF-8', $message->data);
+        self::assertStringContainsString('Content-Type: image/png; name="logo.png"', $message->data);
+        self::assertStringContainsString('Content-Disposition: inline; filename="logo.png"', $message->data);
+    }
+
+    public function testRendersInlineAndRegularAttachmentsAsMixedWithRelatedBody(): void
+    {
+        $message = (new MimeRenderer())->render(
+            Email::new()
+                ->from('sender@example.com')
+                ->to('to@example.net')
+                ->subject('Inline and Attachment')
+                ->html('<img src="cid:logo@example.net">')
+                ->inlineData('image-bytes', 'logo.png', 'image/png', 'logo@example.net')
+                ->attachData('pdf-bytes', 'invoice.pdf', 'application/pdf')
+        );
+
+        self::assertStringContainsString('Content-Type: multipart/mixed;', $message->data);
+        self::assertStringContainsString('Content-Type: multipart/related;', $message->data);
+        self::assertStringContainsString('Content-Disposition: inline; filename="logo.png"', $message->data);
+        self::assertStringContainsString('Content-Disposition: attachment; filename="invoice.pdf"', $message->data);
+        self::assertLessThan(
+            strpos($message->data, 'Content-Disposition: attachment; filename="invoice.pdf"'),
+            strpos($message->data, 'Content-Type: multipart/related;'),
+        );
+    }
+
+    public function testRendersTextHtmlAndInlineAttachmentAsRelatedWithAlternativeBody(): void
+    {
+        $message = (new MimeRenderer())->render(
+            Email::new()
+                ->from('sender@example.com')
+                ->to('to@example.net')
+                ->subject('Inline alternative')
+                ->text('Logo')
+                ->html('<img src="cid:logo@example.net">')
+                ->inlineData('image-bytes', 'logo.png', 'image/png', 'logo@example.net')
+        );
+
+        self::assertStringContainsString('Content-Type: multipart/related;', $message->data);
+        self::assertStringContainsString('Content-Type: multipart/alternative;', $message->data);
+        self::assertStringContainsString('Content-Type: text/plain; charset=UTF-8', $message->data);
+        self::assertStringContainsString('Content-Type: text/html; charset=UTF-8', $message->data);
+        self::assertStringContainsString('Content-Disposition: inline; filename="logo.png"', $message->data);
+        self::assertLessThan(
+            strpos($message->data, 'Content-Disposition: inline; filename="logo.png"'),
+            strpos($message->data, 'Content-Type: multipart/alternative;'),
+        );
+    }
+
     public function testRendersUtf8AttachmentFilenameWithEncodedParameters(): void
     {
         $message = (new MimeRenderer())->render(

@@ -64,12 +64,19 @@ final class MimeRenderer
             $headers[$name] = $this->encodeHeaderValue($value);
         }
 
-        $attachments = $email->getAttachments();
-        if ($attachments !== []) {
+        [$inlineAttachments, $regularAttachments] = $this->splitAttachments($email->getAttachments());
+        if ($inlineAttachments !== [] && $regularAttachments === []) {
+            $boundary = $this->boundary();
+            $headers['Content-Type'] = 'multipart/related; boundary="' . $boundary . '"';
+
+            return [$this->formatHeaders($headers), $this->relatedBody($email, $inlineAttachments, $boundary)];
+        }
+
+        if ($regularAttachments !== []) {
             $boundary = $this->boundary();
             $headers['Content-Type'] = 'multipart/mixed; boundary="' . $boundary . '"';
 
-            return [$this->formatHeaders($headers), $this->mixedBody($email, $attachments, $boundary)];
+            return [$this->formatHeaders($headers), $this->mixedBody($email, $regularAttachments, $boundary, $inlineAttachments)];
         }
 
         if ($email->getText() !== null && $email->getHtml() !== null) {
@@ -91,9 +98,41 @@ final class MimeRenderer
     }
 
     /**
-     * @param list<Attachment> $attachments
+     * @param list<Attachment> $regularAttachments
+     * @param list<Attachment> $inlineAttachments
      */
-    private function mixedBody(Email $email, array $attachments, string $boundary): string
+    private function mixedBody(Email $email, array $regularAttachments, string $boundary, array $inlineAttachments = []): string
+    {
+        $body = "This is a multi-part message in MIME format.\r\n\r\n";
+        if ($inlineAttachments !== []) {
+            $innerBoundary = $this->boundary();
+            $body .= "--{$boundary}\r\n";
+            $body .= 'Content-Type: multipart/related; boundary="' . $innerBoundary . "\"\r\n\r\n";
+            $body .= $this->relatedBody($email, $inlineAttachments, $innerBoundary);
+        } elseif ($email->getText() !== null && $email->getHtml() !== null) {
+            $innerBoundary = $this->boundary();
+            $body .= "--{$boundary}\r\n";
+            $body .= 'Content-Type: multipart/alternative; boundary="' . $innerBoundary . "\"\r\n\r\n";
+            $body .= $this->alternativeBody($email, $innerBoundary, true);
+        } else {
+            $contentType = $email->getHtml() !== null ? 'text/html' : 'text/plain';
+            $body .= "--{$boundary}\r\n";
+            $body .= "Content-Type: {$contentType}; charset=UTF-8\r\n";
+            $body .= "Content-Transfer-Encoding: quoted-printable\r\n\r\n";
+            $body .= quoted_printable_encode($email->getHtml() ?? $email->getText() ?? '') . "\r\n\r\n";
+        }
+
+        foreach ($regularAttachments as $attachment) {
+            $body .= $this->attachmentPart($attachment, $boundary);
+        }
+
+        return $body . "--{$boundary}--\r\n";
+    }
+
+    /**
+     * @param list<Attachment> $inlineAttachments
+     */
+    private function relatedBody(Email $email, array $inlineAttachments, string $boundary): string
     {
         $body = "This is a multi-part message in MIME format.\r\n\r\n";
         if ($email->getText() !== null && $email->getHtml() !== null) {
@@ -109,11 +148,11 @@ final class MimeRenderer
             $body .= quoted_printable_encode($email->getHtml() ?? $email->getText() ?? '') . "\r\n\r\n";
         }
 
-        foreach ($attachments as $attachment) {
+        foreach ($inlineAttachments as $attachment) {
             $body .= $this->attachmentPart($attachment, $boundary);
         }
 
-        return $body . "--{$boundary}--\r\n";
+        return $body . "--{$boundary}--\r\n\r\n";
     }
 
     private function alternativeBody(Email $email, string $boundary, bool $close): string
@@ -170,6 +209,25 @@ final class MimeRenderer
     private function formatAddresses(array $addresses): string
     {
         return implode(', ', array_map(static fn (Address $address): string => $address->format(), $addresses));
+    }
+
+    /**
+     * @param list<Attachment> $attachments
+     * @return array{0: list<Attachment>, 1: list<Attachment>}
+     */
+    private function splitAttachments(array $attachments): array
+    {
+        $inline = [];
+        $regular = [];
+        foreach ($attachments as $attachment) {
+            if ($attachment->isInline()) {
+                $inline[] = $attachment;
+            } else {
+                $regular[] = $attachment;
+            }
+        }
+
+        return [$inline, $regular];
     }
 
     /**

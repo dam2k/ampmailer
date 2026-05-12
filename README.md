@@ -58,9 +58,6 @@ Implemented:
 
 Known gaps before tagging `0.6.1`:
 
-- Improve MIME tree generation for inline resources: HTML with inline
-  attachments should use `multipart/related`, and combinations of text, HTML,
-  inline resources, and normal attachments should be covered by explicit tests.
 - Add validation for attachment names, content types, and content IDs to reject
   unsafe header characters.
 - Add tests for retry limits and backoff timing without making the suite slow.

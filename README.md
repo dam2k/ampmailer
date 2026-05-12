@@ -1,5 +1,7 @@
 # AmpMailer
 
+[![CI](https://github.com/dam2k/ampmailer/actions/workflows/ci.yml/badge.svg)](https://github.com/dam2k/ampmailer/actions/workflows/ci.yml)
+
 Small AMPHP v3 mailer with MIME rendering, SMTP transport, retry, and rate limiting.
 
 ## Project Status
@@ -8,8 +10,8 @@ AmpMailer is experimental and still lightly tested. Test it carefully and for a
 long period in your own environment before relying on it in production.
 
 The current target is `0.6.1`: a small, usable pre-1.0 release with a stable
-core API, strong local test coverage, and explicit warnings about the remaining
-production validation work.
+core API, strong local test coverage, and explicit warnings about production
+validation.
 
 ## Anti-Spam Policy
 
@@ -57,10 +59,8 @@ Implemented:
 - PHPUnit tests, PHPStan analysis, Composer validation, and GitHub Actions CI
   for PHP 8.2, 8.3, and 8.4.
 
-Known gaps before tagging `0.6.1`:
-
-- Prepare release metadata: changelog, CI badge, Packagist notes, and `0.6.1`
-  tag procedure.
+Release metadata, Packagist notes, and the `0.6.1` tag procedure are documented
+in `CHANGELOG.md` and `docs/release.md`.
 
 ## Basic Usage
 

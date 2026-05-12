@@ -20,10 +20,11 @@ jobs:
         with:
           php-version: ${{ matrix.php-version }}
           coverage: none
-
-      - uses: ramsey/composer-install@v3
+          tools: composer:v2
 
       - run: composer validate --strict
+
+      - run: composer install --no-interaction --prefer-dist --no-progress
 
       - run: composer test
 
